@@ -1,0 +1,665 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "id": "df8e9d5d",
+   "metadata": {},
+   "source": [
+    "2649854M \n",
+    "https://github.com/AlphaStone1/DMIS-AI-A-Code-Portfolio"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "59bd112e",
+   "metadata": {},
+   "source": [
+    "# Generating Chorales With RNN"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "8080f88c",
+   "metadata": {},
+   "source": [
+    "# Getting the Data"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "61d3ad52",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import tensorflow as tf\n",
+    "\n",
+    "tf.keras.utils.get_file(\n",
+    "    \"jsb_chorales.tgz\",\n",
+    "    \"https://github.com/ageron/data/raw/main/jsb_chorales.tgz\",\n",
+    "    cache_dir=\".\",\n",
+    "    extract=True)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "b7a4b995",
+   "metadata": {},
+   "source": [
+    "This code is using the TensorFlow library to download and extract a compressed file from a specific URL. Here's a breakdown of the code:\n",
+    "* 'import tensorflow as tf' imports the TensorFlow library.\n",
+    "\n",
+    "* 'tf.keras.utils.get_file(' calls the get_file function from the TensorFlow's Keras utilities. It is used to download a file from a given URL, cache it locally, and optionally extract its contents. \n",
+    "\n",
+    "* 'jsb_chorales.tgz' is the local filename that the downloaded file will be saved as.\n",
+    "'https://github.com/ageron/data/raw/main/jsb_chorales.tgz' is the URL from which the file will be downloaded.\n",
+    "* 'cache_dir=\".\"' specifies the directory where the downloaded file will be cached. In this case, it's set to the current working directory (\".\").\n",
+    "* 'extract=True' indicates that the downloaded file should be extracted. The file is in a compressed format (\".tgz\"), so setting this to True ensures that the contents are extracted after downloading.\n",
+    "\n",
+    "This code is used to download a compressed file named \"jsb_chorales.tgz\" from a GitHub repository and extract its contents into the current working directory. "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "06abc3de",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "from pathlib import Path\n",
+    "\n",
+    "jsb_chorales_dir = Path(\"datasets/jsb_chorales\")\n",
+    "train_files = sorted(jsb_chorales_dir.glob(\"train/chorale_*.csv\"))\n",
+    "valid_files = sorted(jsb_chorales_dir.glob(\"valid/chorale_*.csv\"))\n",
+    "test_files = sorted(jsb_chorales_dir.glob(\"test/chorale_*.csv\"))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "61f1cdb7",
+   "metadata": {},
+   "source": [
+    "This code uses the pathlib module to work with file paths and creates lists of file paths for training, validation, and test sets. Here's a breakdown of the code:\n",
+    "\n",
+    "* 'from pathlib import Path' imports the Path class from the pathlib module, which provides an object-oriented interface for working with filesystem paths.\n",
+    "* 'jsb_chorales_dir = Path(\"datasets/jsb_chorales\")' creates a Path object representing the directory path 'datasets/jsb_chorales'. This is the base directory where the dataset is expected to be located.\n",
+    "* 'train/chorale_*.csv' matches all files in the 'train' subdirectory of 'jsb_chorales_dir' with names starting with 'chorale_; and ending with '.csv'. The resulting paths are sorted and stored in the train_files list.\n",
+    "* 'valid/chorale_*.csv' matches files in the 'valid' subdirectory.\n",
+    "* 'test/chorale_*.csv' matches files in the 'test' subdirectory.\n",
+    "* The sorted function is then used to sort the list of paths alphabetically.\n",
+    "\n",
+    "This code is preparing file paths for training, validation, and test sets of chorale data. "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "23de8b24",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import pandas as pd\n",
+    "\n",
+    "def load_chorales(filepaths):\n",
+    "    return [pd.read_csv(filepath).values.tolist() for filepath in filepaths]\n",
+    "\n",
+    "train_chorales = load_chorales(train_files)\n",
+    "valid_chorales = load_chorales(valid_files)\n",
+    "test_chorales = load_chorales(test_files)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "9ed51b12",
+   "metadata": {},
+   "source": [
+    "This code is using the Pandas library to load chorale data from CSV files into lists of lists. Here's a breakdown of the code:\n",
+    "\n",
+    "* 'import pandas as pd' imports the Pandas library and assigns it the alias pd.\n",
+    "* 'def load_chorales(filepaths):\n",
+    "    return [pd.read_csv(filepath).values.tolist() for filepath in filepaths]' defines a function named load_chorales. The function takes a list of file paths as input and returns a list of lists. For each file in the input list, it uses Pandas' read_csv function to read the contents of the CSV file into a DataFrame, and then the .values.tolist() method is called to convert each row in the DataFrame to a list. The resulting list of lists represents the data in the CSV file.\n",
+    "* The next three lines use the 'load_chorales' function to load chorale data from CSV files into three separate lists: train_chorales, valid_chorales, and test_chorales.\n",
+    "\n",
+    "The code defines a function to load chorale data from CSV files using Pandas, and then it uses this function to load the training, validation, and test sets into separate lists of lists. Each list in these sets represents the data from a corresponding CSV file in a structured format that can be further processed or used for analysis."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "eebca341",
+   "metadata": {},
+   "source": [
+    "# Preparing the Data"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "953b8890",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "notes = set()\n",
+    "for chorales in (train_chorales, valid_chorales, test_chorales):\n",
+    "    for chorale in chorales:\n",
+    "        for chord in chorale:\n",
+    "            notes |= set(chord)\n",
+    "\n",
+    "n_notes = len(notes)\n",
+    "min_note = min(notes - {0}) #0 denotes no notes being played\n",
+    "max_note = max(notes)\n",
+    "\n",
+    "assert min_note == 36\n",
+    "assert max_note == 81"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "781f4081",
+   "metadata": {},
+   "source": [
+    "This code processes the loaded chorale data to extract information about musical notes. Here's a breakdown of the code:\n",
+    "\n",
+    "* 'notes = set()' initializes an empty set called 'notes' to store unique musical notes.\n",
+    "* 'for chorales in (train_chorales, valid_chorales, test_chorales):\n",
+    "    for chorale in chorales:\n",
+    "        for chord in chorale:\n",
+    "            notes |= set(chord)' is a loop which iterates over the training, validation, and test sets of chorales. For each chorale, it goes through each chord in the chorale, converting the chord to a set to get unique notes, and then updates the notes set with the union of these sets.\n",
+    "* 'n_notes = len(notes)' calculates the total number of unique notes by finding the length of the 'notes' set.\n",
+    "* 'min_note = min(notes - {0})  # 0 denotes no notes being played\n",
+    "   max_note = max(notes)' calculates the minimum and maximum notes present in the dataset. It excludes the note value 0 (which likely represents no notes being played) from consideration when finding the minimum note.\n",
+    "* 'assert min_note == 36\n",
+    "  assert max_note == 81' check whether the calculated minimum note is 36 and the maximum note is 81. If these conditions are not met, an AssertionError will be raised, indicating a potential issue with the dataset or the assumptions made about the note range.\n",
+    "  \n",
+    "This code processes the loaded chorale data to determine the range of musical notes present in the dataset, excluding the note value 0. The calculated minimum and maximum notes are then checked against expected values, and assertions ensure that the dataset meets the assumed criteria."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "05a4f254",
+   "metadata": {},
+   "source": [
+    "### Code for Synthesiser\n",
+    "\n",
+    "The following cell is code for a synthesiser to play MIDI. Not part of machine learning code to generate Bach, but useful for listening to the results and samples used for training!"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "a0bc04ca",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "from IPython.display import Audio\n",
+    "import numpy as np\n",
+    "\n",
+    "def notes_to_frequencies(notes):\n",
+    "    # Frequency doubles when you go up one octave; there are 12 semi-tones\n",
+    "    # per octave; Note A on octave 4 is 440 Hz, and it is note number 69.\n",
+    "    return 2 ** ((np.array(notes) - 69) / 12) * 440\n",
+    "\n",
+    "def frequencies_to_samples(frequencies, tempo, sample_rate):\n",
+    "    note_duration = 60 / tempo # the tempo is measured in beats per minutes\n",
+    "    # To reduce click sound at every beat, we round the frequencies to try to\n",
+    "    # get the samples close to zero at the end of each note.\n",
+    "    frequencies = (note_duration * frequencies).round() / note_duration\n",
+    "    n_samples = int(note_duration * sample_rate)\n",
+    "    time = np.linspace(0, note_duration, n_samples)\n",
+    "    sine_waves = np.sin(2 * np.pi * frequencies.reshape(-1, 1) * time)\n",
+    "    # Removing all notes with frequencies ≤ 9 Hz (includes note 0 = silence)\n",
+    "    sine_waves *= (frequencies > 9.).reshape(-1, 1)\n",
+    "    return sine_waves.reshape(-1)\n",
+    "\n",
+    "def chords_to_samples(chords, tempo, sample_rate):\n",
+    "    freqs = notes_to_frequencies(chords)\n",
+    "    freqs = np.r_[freqs, freqs[-1:]] # make last note a bit longer\n",
+    "    merged = np.mean([frequencies_to_samples(melody, tempo, sample_rate)\n",
+    "                     for melody in freqs.T], axis=0)\n",
+    "    n_fade_out_samples = sample_rate * 60 // tempo # fade out last note\n",
+    "    fade_out = np.linspace(1., 0., n_fade_out_samples)**2\n",
+    "    merged[-n_fade_out_samples:] *= fade_out\n",
+    "    return merged\n",
+    "\n",
+    "def play_chords(chords, tempo=160, amplitude=0.1, sample_rate=44100, filepath=None):\n",
+    "    samples = amplitude * chords_to_samples(chords, tempo, sample_rate)\n",
+    "    if filepath:\n",
+    "        from scipy.io import wavfile\n",
+    "        samples = (2**15 * samples).astype(np.int16)\n",
+    "        wavfile.write(filepath, sample_rate, samples)\n",
+    "        return display(Audio(filepath))\n",
+    "    else:\n",
+    "        return display(Audio(samples, rate=sample_rate))\n",
+    "\n",
+    "## testing the synthesiser\n",
+    "for index in range(3):\n",
+    "    play_chords(train_chorales[index])"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "17ca2e76",
+   "metadata": {},
+   "source": [
+    "This code defines a synthesizer for musical chords using sine waves and allows for playing or saving the synthesized music. Here's a breakdown of the code:\n",
+    "\n",
+    "* 'notes_to_frequencies(notes)' Converts a sequence of musical note numbers to corresponding frequencies. The formula used is based on the standard frequency of note A in octave 4 (440 Hz).\n",
+    "* 'frequencies_to_samples(frequencies, tempo, sample_rate)' Converts frequencies into audio samples. Takes into account the tempo and sample rate. Rounds frequencies to reduce click sounds at the end of each note. Generates sine waves for each note and removes notes with frequencies below 9 Hz (including note 0 for silence).\n",
+    "* 'chords_to_samples(chords, tempo, sample_rate)' Uses 'frequencies_to_samples' to convert a sequence of chord notes into audio samples. Makes the last note a bit longer for a smoother transition. Applies fading out to the last note to avoid abrupt endings.\n",
+    "* 'play_chords(chords, tempo=160, amplitude=0.1, sample_rate=44100, filepath=None)' Plays or saves the synthesized music based on the given chord sequence. It uses 'chords_to_samples' to generate the audio samples. If 'filepath' is provided, it saves the audio as a WAV file and displays an interactive audio player. If no 'filepath' is provided, it directly plays the audio using the IPython 'Audio' class.\n",
+    "* 'for index in range(3):\n",
+    "    play_chords(train_chorales[index])' is a loop which plays the first three chorales from the training set using the 'play_chords' function. The synthesized audio is played directly in the Jupyter Notebook.\n",
+    "\n",
+    "This code provides a synthesizer for musical chords using sine waves, and it demonstrates the synthesizer by playing the first three chorales from a training set. The music can be played directly in the Jupyter Notebook or saved as a WAV file."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "8c315b49",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import tensorflow as tf\n",
+    "\n",
+    "def create_target(batch):\n",
+    "    X = batch[:, :-1]\n",
+    "    Y = batch[:, 1:] # predict next note in each arpegio, at each step\n",
+    "    return X, Y\n",
+    "\n",
+    "def preprocess(window):\n",
+    "    window = tf.where(window == 0, window, window - min_note + 1) # shift values\n",
+    "    return tf.reshape(window, [-1]) # convert to arpegio\n",
+    "\n",
+    "def bach_dataset(chorales, batch_size=32, shuffle_buffer_size=None,\n",
+    "                 window_size=32, window_shift=16, cache=True):\n",
+    "    def batch_window(window):\n",
+    "        return window.batch(window_size + 1)\n",
+    "\n",
+    "    def to_windows(chorale):\n",
+    "        dataset = tf.data.Dataset.from_tensor_slices(chorale)\n",
+    "        dataset = dataset.window(window_size + 1, window_shift, drop_remainder=True)\n",
+    "        return dataset.flat_map(batch_window)\n",
+    "\n",
+    "    chorales = tf.ragged.constant(chorales, ragged_rank=1)\n",
+    "    dataset = tf.data.Dataset.from_tensor_slices(chorales)\n",
+    "    dataset = dataset.flat_map(to_windows).map(preprocess)\n",
+    "    if cache:\n",
+    "        dataset = dataset.cache()\n",
+    "    if shuffle_buffer_size:\n",
+    "        dataset = dataset.shuffle(shuffle_buffer_size)\n",
+    "    dataset = dataset.batch(batch_size)\n",
+    "    dataset = dataset.map(create_target)\n",
+    "    return dataset.prefetch(1)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "566b6086",
+   "metadata": {},
+   "source": [
+    "This code defines a TensorFlow dataset creation pipeline for generating batches of input-output pairs from a collection of chorales. Here's a breakdown of the code:\n",
+    "\n",
+    "* 'create_target(batch)' Takes a batch of arpeggio sequences and creates input ('X') and target ('Y') pairs. 'X' consists of all elements in the batch except the last one.'Y' consists of all elements in the batch except the first one. The goal is to predict the next note in each arpeggio sequence.\n",
+    "* 'preprocess(window)' Shifts the values in the window by subtracting the minimum note value and adding 1. Converts the 2D window into a 1D arpeggio by reshaping it.\n",
+    "* 'bach_dataset(chorales, batch_size=32, shuffle_buffer_size=None, window_size=32, window_shift=16, cache=True)' Takes a collection of chorales and creates a TensorFlow dataset. The chorales are converted into a 'RaggedTensor' with a ragged rank of 1. Windows of size 'window_size + 1' are created with a specified shift ('window_shift') between consecutive windows. The preprocess function is applied to each window to shift values and convert it into an arpeggio. If caching is enabled ('cache=True'), the dataset is cached for better performance. If a shuffle buffer size is specified ('shuffle_buffer_size'), the dataset is shuffled accordingly. The dataset is then batched into batches of size 'batch_size'. The 'create_target' function is applied to each batch to create input-output pairs. The dataset is finally set to prefetch one batch ahead for improved performance during training.\n",
+    "\n",
+    "This code defines a TensorFlow dataset pipeline for training a model on musical arpeggio sequences. It preprocesses the data, creates windows of sequences, applies transformations, caches and shuffles the data (if specified), and sets up the dataset to be consumed in batches for training."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "49b547f8",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "train_set = bach_dataset(train_chorales, shuffle_buffer_size=1000)\n",
+    "valid_set = bach_dataset(valid_chorales)\n",
+    "test_set = bach_dataset(test_chorales)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "4ea9f494",
+   "metadata": {},
+   "source": [
+    "This code creates three TensorFlow datasets (train_set, valid_set, and test_set) using the bach_dataset function. Here's a breakdown of the code:\n",
+    "\n",
+    "* 'train_set' Creates a training dataset ('train_set') using the 'bach_dataset' function. Specifies a shuffle buffer size of 1000, indicating that the training dataset will be shuffled with a buffer of size 1000.\n",
+    "* 'valid_set' Creates a validation dataset ('valid_set') using the 'bach_dataset' function.\n",
+    "* 'test_set' Creates a test dataset ('test_set') using the 'bach_dataset' function. \n",
+    "\n",
+    "This code sets up three TensorFlow datasets (train_set, valid_set, and test_set) for training, validation, and testing purposes. The training dataset is explicitly shuffled with a buffer size of 1000, while the validation and test datasets are not explicitly shuffled. "
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "4aa66a40",
+   "metadata": {},
+   "source": [
+    "# Building the Model"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "d5b35ac9",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "n_embedding_dims = 5\n",
+    "\n",
+    "model = tf.keras.Sequential([\n",
+    "    tf.keras.layers.Embedding(input_dim=n_notes, output_dim=n_embedding_dims,\n",
+    "                           input_shape=[None]),\n",
+    "    tf.keras.layers.Conv1D(32, kernel_size=2, padding=\"causal\", activation=\"relu\"),\n",
+    "    tf.keras.layers.BatchNormalization(),\n",
+    "    tf.keras.layers.Conv1D(48, kernel_size=2, padding=\"causal\", activation=\"relu\", dilation_rate=2),\n",
+    "    tf.keras.layers.BatchNormalization(),\n",
+    "    tf.keras.layers.Conv1D(64, kernel_size=2, padding=\"causal\", activation=\"relu\", dilation_rate=4),\n",
+    "    tf.keras.layers.BatchNormalization(),\n",
+    "    tf.keras.layers.Conv1D(96, kernel_size=2, padding=\"causal\", activation=\"relu\", dilation_rate=8),\n",
+    "    tf.keras.layers.BatchNormalization(),\n",
+    "    tf.keras.layers.LSTM(256, return_sequences=True),\n",
+    "    tf.keras.layers.Dense(n_notes, activation=\"softmax\")\n",
+    "])"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "04e871ec",
+   "metadata": {},
+   "source": [
+    "This code defines a neural network model using TensorFlow's Keras API. The model is designed for sequence-to-sequence processing. Here's a breakdown of the code:\n",
+    "\n",
+    "* Embedding Layer: An 'Embedding' layer is the first layer of the model. It is used to learn a dense representation for each unique note. 'input_dim' is set to 'n_notes', representing the number of unique notes. 'output_dim' is set to 'n_embedding_dims', representing the dimensionality of the embedding. The 'input_shape' is set to '[None]', indicating that the model can accept sequences of variable length.\n",
+    "* Convolutional Layers with Batch Normalization: Four 1D convolutional layers are stacked. Each convolutional layer is followed by a 'BatchNormalization' layer. The convolutional layers have increasing dilation rates (2, 4, 8), which allows the model to capture patterns with different receptive fields.\n",
+    "* LSTM Layer: A LSTM layer with 256 units and 'return_sequences=True'. The 'return_sequences=True' setting means that the LSTM layer returns the full sequence of outputs for each input sequence.\n",
+    "* Dense Layer: A fully connected ('Dense') layer with 'n_notes' units and softmax activation. The softmax activation converts the model's output into a probability distribution over the possible note values.\n",
+    "\n",
+    "This model architecture consists of an embedding layer, followed by a stack of convolutional layers with batch normalization, an LSTM layer, and a dense layer with softmax activation. It's designed for sequence-to-sequence tasks, particularly for predicting musical notes in an arpeggio sequence.\n",
+    "\n",
+    "When running on my MacBook, I recevied this message, '2023-12-03 14:36:43.816161: I tensorflow/core/common_runtime/executor.cc:1197] [/device:CPU:0] (DEBUG INFO) Executor start aborting (this does not indicate an error and you can ignore this message): INVALID_ARGUMENT: You must feed a value for placeholder tensor 'gradients/split_2_grad/concat/split_2/split_dim' with dtype int32\n",
+    "\t [[{{node gradients/split_2_grad/concat/split_2/split_dim}}]]' which is most likely not intended, however, does not affect the execution of the code and can be ignored."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "330c181e",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "model.summary()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "8bea205e",
+   "metadata": {},
+   "source": [
+    "The code model.summary() prints a summary of the architecture and parameters of the TensorFlow Keras model that was defined earlier. It provides a concise overview of the layers in the model, their output shapes, and the number of trainable parameters.\n",
+    "\n",
+    "This summary is useful for quickly inspecting the model architecture, understanding the size of each layer's output, and checking the total number of parameters in the model."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "d18d5028",
+   "metadata": {},
+   "source": [
+    "# Training the Model"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "7682f58a",
+   "metadata": {
+    "scrolled": true
+   },
+   "outputs": [],
+   "source": [
+    "optimizer = tf.keras.optimizers.Nadam(learning_rate=1e-3)\n",
+    "model.compile(loss=\"sparse_categorical_crossentropy\", optimizer=optimizer,\n",
+    "              metrics=[\"accuracy\"])\n",
+    "model.fit(train_set, epochs=20, validation_data=valid_set)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "af3f7eee",
+   "metadata": {},
+   "source": [
+    "This code involves the training phase of a TensorFlow Keras model. Here's a breakdown of the code:\n",
+    "\n",
+    "* 'optimizer = tf.keras.optimizers.Nadam(learning_rate=1e-3)' An instance of the Nadam optimizer is created. Nadam is an optimization algorithm that combines Nesterov accelerated gradient (NAG) and Adam. The learning rate is set to 1e-3.\n",
+    "* 'model.compile(loss=\"sparse_categorical_crossentropy\", optimizer=optimizer,\n",
+    "              metrics=[\"accuracy\"])' The model is compiled, specifying the loss function, optimizer, and metrics for evaluation during training. 'sparse_categorical_crossentropy' is used as the loss function, which is suitable for multi-class classification problems. The Nadam optimizer initialized earlier is used. The metric for evaluation during training is set to accuracy.\n",
+    "* 'model.fit(train_set, epochs=20, validation_data=valid_set)' The fit method is called to train the model. 'train_set' is the training dataset. 'epochs=20' specifies that the training process should iterate over the entire training dataset 20 times. 'validation_data=valid_set' provides a validation dataset for monitoring the model's performance on data not used during training.\n",
+    "\n",
+    "This code initializes an optimizer, compiles a neural network model for training, and then trains the model using the specified training dataset (train_set) for 20 epochs, with validation on a separate dataset (valid_set). The Nadam optimizer is used with a learning rate of 1e-3, and the model is trained to minimize the sparse categorical cross-entropy loss while monitoring accuracy as a metric.\n",
+    "\n",
+    "'WARNING:absl:At this time, the v2.11+ optimizer `tf.keras.optimizers.Nadam` runs slowly on M1/M2 Macs, please use the legacy Keras optimizer instead, located at `tf.keras.optimizers.legacy.Nadam`.', messages appeared like this, they do not indicate error, the code still executes."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "29e9dbdf",
+   "metadata": {},
+   "source": [
+    "# Saving and Evaluating Your Model "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "4cea7b1d",
+   "metadata": {
+    "scrolled": true
+   },
+   "outputs": [],
+   "source": [
+    "model.save(\"my_bach_model\", save_format=\"tf\")\n",
+    "model.evaluate(test_set)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "1a76f248",
+   "metadata": {},
+   "source": [
+    "This code performs two main actions:\n",
+    "\n",
+    "* 'model.save(\"my_bach_model\", save_format=\"tf\")' The 'save' method is used to save the trained model to disk. The model is saved under the directory specified in the first argument ('\"my_bach_model\"'). 'save_format=\"tf\"' indicates that the TensorFlow SavedModel format should be used for saving the model.\n",
+    "* 'model.evaluate(test_set)' The 'evaluate' method is used to evaluate the trained model on the test dataset ('test_set'). This typically involves computing the loss and any specified metrics on the test data. The evaluation results, including the loss and metrics, are printed to the console.\n",
+    "\n",
+    "34/34 [==============================] - 5s 157ms/step - loss: 0.6465 - accuracy: 0.8177\n",
+    "[0.6464777588844299, 0.8176810145378113]\n",
+    "\n",
+    "This code saves the trained TensorFlow Keras model to disk in the TensorFlow SavedModel format under the directory \"my_bach_model\". After saving, it evaluates the performance of the model on the test dataset ('test_set') and prints the evaluation results.\n",
+    "\n",
+    "Although there were various error messages like '2023-12-03 14:47:18.506048: I tensorflow/core/common_runtime/executor.cc:1197] [/device:CPU:0] (DEBUG INFO) Executor start aborting (this does not indicate an error and you can ignore this message): INVALID_ARGUMENT: You must feed a value for placeholder tensor 'gradients/split_2_grad/concat/split_2/split_dim' with dtype int32\n",
+    "\t [[{{node gradients/split_2_grad/concat/split_2/split_dim}}]]', the code still executes, so they can be ignored."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "13f1e7c1",
+   "metadata": {},
+   "source": [
+    "# Generating Chorales"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "5a628834",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def generate_chorale_v2(model, seed_chords, length, temperature=1):\n",
+    "    arpegio = preprocess(tf.constant(seed_chords, dtype=tf.int64))\n",
+    "    arpegio = tf.reshape(arpegio, [1, -1])\n",
+    "    for chord in range(length):\n",
+    "        for note in range(4):\n",
+    "            next_note_probas = model.predict(arpegio)[0, -1:]\n",
+    "            rescaled_logits = tf.math.log(next_note_probas) / temperature\n",
+    "            next_note = tf.random.categorical(rescaled_logits, num_samples=1)\n",
+    "            arpegio = tf.concat([arpegio, next_note], axis=1)\n",
+    "    arpegio = tf.where(arpegio == 0, arpegio, arpegio + min_note - 1)\n",
+    "    return tf.reshape(arpegio, shape=[-1, 4])"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "9eb8116d",
+   "metadata": {},
+   "source": [
+    "This code defines a function 'generate_chorale_v2' that generates a musical arpeggio sequence using a trained TensorFlow Keras model. Here's a breakdown of the code:\n",
+    "\n",
+    "* Input Preprocessing: 'arpegio = preprocess(tf.constant(seed_chords, dtype=tf.int64))' The 'seed_chords' input is converted into a TensorFlow constant tensor of type 'tf.int64'. The 'preprocess' function is applied to shift values in the window.\n",
+    "* Reshaping the Input: 'arpegio = tf.reshape(arpegio, [1, -1])' The arpeggio is reshaped into a 2D tensor with shape '[1, -1]', effectively converting it into a 1D sequence.\n",
+    "* Generation Loop: 'for chord in range(length):\n",
+    "    for note in range(4):\n",
+    "        next_note_probas = model.predict(arpegio)[0, -1:]\n",
+    "        rescaled_logits = tf.math.log(next_note_probas) / temperature\n",
+    "        next_note = tf.random.categorical(rescaled_logits, num_samples=1)\n",
+    "        arpegio = tf.concat([arpegio, next_note], axis=1)' The outer loop ('chord') iterates for the desired length of the generated sequence. The inner loop ('note') iterates four times, generating the next note in each iteration. The model is used to predict the probability distribution of the next note given the current sequence ('arpegio'). The 'rescaled_logits' are computed by scaling the logits with the temperature. A random note is sampled from the probability distribution using 'tf.random.categorical'. The generated note is concatenated to the existing arpeggio sequence.\n",
+    "* Post-processing: 'arpegio = tf.where(arpegio == 0, arpegio, arpegio + min_note - 1)' The generated arpeggio is post-processed by shifting values back (if they were shifted during preprocessing).\n",
+    "* Reshaping the Output: 'return tf.reshape(arpegio, shape=[-1, 4])' The final arpeggio sequence is reshaped into a 2D tensor with shape '[-1, 4]', where each row represents a chord with four notes.\n",
+    "\n",
+    "This function generates a musical arpeggio sequence of the specified length using a trained model. The generation process involves predicting the next note in each chord, sampling from the predicted probabilities, and iteratively building the sequence. The temperature parameter controls the randomness of the generation."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "026e17c0",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "seed_chords = test_chorales[2][:8]\n",
+    "play_chords(seed_chords, amplitude=0.2)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "5c9db6de",
+   "metadata": {},
+   "source": [
+    "This code generates and plays a musical sequence using a trained model. Here's a breakdown of the code:\n",
+    "\n",
+    "* 'seed_chords = test_chorales[2][:8]' Extracts the first 8 chords (or notes) from the third test chorale ('test_chorales[2]'). 'seed_chords' represents the initial musical sequence that will be used as a seed for the generation process.\n",
+    "* 'play_chords(seed_chords, amplitude=0.2)' Calls the 'play_chords' function with the 'seed_chords' as input. The 'amplitude' parameter is set to 0.2, controlling the volume of the generated music. The 'play_chords' function uses the previously defined music synthesizer to play the generated musical sequence.\n",
+    "\n",
+    "This code extracts the first 8 chords from the third test chorale, uses them as a seed, and then plays the generated musical sequence with a specified amplitude."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "f0b9f623",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "new_chorale_v2_cold = generate_chorale_v2(model, seed_chords, 56, temperature=0.8)\n",
+    "play_chords(new_chorale_v2_cold, filepath=\"bach_cold.wav\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "c04c3925",
+   "metadata": {},
+   "source": [
+    "This code generates a new musical sequence using the trained model with a specific temperature setting and then plays the generated sequence. Here's a breakdown of the code:\n",
+    "\n",
+    "* 'new_chorale_v2_cold = generate_chorale_v2(model, seed_chords, 56, temperature=0.8)' Calls the 'generate_chorale_v2' function with the following parameters: 'model', the trained TensorFlow Keras model. 'seed_chords', the initial sequence used as a seed for generation. '56', the desired length of the generated sequence (56 chords). 'temperature=0.8', the temperature setting for controlling the randomness of the generation process. This generates a new musical sequence ('new_chorale_v2_cold') based on the given parameters.\n",
+    "* 'play_chords(new_chorale_v2_cold, filepath=\"bach_cold.wav\")' Calls the 'play_chords' function with the generated musical sequence ('new_chorale_v2_cold'). The 'filepath=\"bach_cold.wav\"' parameter specifies that the generated music should be saved to a WAV file named \"bach_cold.wav\" during playback.\n",
+    "\n",
+    "This code generates a new musical sequence using the trained model with a temperature setting of 0.8 and then plays the generated sequence. Additionally, it saves the generated music as a WAV file named \"bach_cold.wav.\" \n",
+    "\n",
+    "'2023-12-03 14:47:39.251566: I tensorflow/core/common_runtime/executor.cc:1197] [/device:CPU:0] (DEBUG INFO) Executor start aborting (this does not indicate an error and you can ignore this message): INVALID_ARGUMENT: You must feed a value for placeholder tensor 'gradients/split_2_grad/concat/split_2/split_dim' with dtype int32', messages showed up again, but as the code executes perfectly fine and music is generated, these can be ignored."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "d26bfdfc",
+   "metadata": {
+    "scrolled": true
+   },
+   "outputs": [],
+   "source": [
+    "new_chorale_v2_medium = generate_chorale_v2(model, seed_chords, 56, temperature=1.0)\n",
+    "play_chords(new_chorale_v2_medium, filepath=\"bach_medium.wav\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "dcff7133",
+   "metadata": {},
+   "source": [
+    "This code generates another new musical sequence using the trained model, but with a different temperature setting, and then plays the generated sequence. Here's breakdown of the code:\n",
+    "\n",
+    "* 'new_chorale_v2_medium = generate_chorale_v2(model, seed_chords, 56, temperature=1)' Calls the 'generate_chorale_v2' function with the following parameters: 'model', the trained TensorFlow Keras model. 'seed_chords', the initial sequence used as a seed for generation. '56', the desired length of the generated sequence (56 chords). 'temperature=1', the temperature setting for controlling the randomness of the generation process. This generates a new musical sequence ('new_chorale_v2_medium') based on the given parameters.\n",
+    "* 'play_chords(new_chorale_v2_medium, filepath=\"bach_medium.wav\")' Calls the 'play_chords' function with the generated musical sequence ('new_chorale_v2_medium'). The 'filepath=\"bach_medium.wav\"' parameter specifies that the generated music should be saved to a WAV file named \"bach_medium.wav\" during playback.\n",
+    "\n",
+    "This code generates a new musical sequence using the trained model with a temperature setting of 1 and then plays the generated sequence. Additionally, it saves the generated music as a WAV file named \"bach_medium.wav.\""
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "48734911",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "new_chorale_v2_hot = generate_chorale_v2(model, seed_chords, 56, temperature=1.5)\n",
+    "play_chords(new_chorale_v2_hot, filepath=\"bach_hot.wav\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "36c36acf",
+   "metadata": {},
+   "source": [
+    "This code generates another new musical sequence using the trained model, but with a different temperature setting, and then plays the generated sequence. Here's breakdown of the code:\n",
+    "\n",
+    "* 'new_chorale_v2_hot = generate_chorale_v2(model, seed_chords, 56, temperature=1.5)' Calls the 'generate_chorale_v2' function with the following parameters: 'model', the trained TensorFlow Keras model. 'seed_chords', the initial sequence used as a seed for generation. '56', the desired length of the generated sequence (56 chords). 'temperature=1.5', the temperature setting for controlling the randomness of the generation process. This generates a new musical sequence ('new_chorale_v2_hot') based on the given parameters.\n",
+    "* 'play_chords(new_chorale_v2_hot, filepath=\"bach_hot.wav\")' Calls the 'play_chords' function with the generated musical sequence ('new_chorale_v2_hot'). The 'filepath=\"bach_hot.wav\"' parameter specifies that the generated music should be saved to a WAV file named \"bach_hot.wav\" during playback.\n",
+    "\n",
+    "This code generates a new musical sequence using the trained model with a temperature setting of 1.5 and then plays the generated sequence. Additionally, it saves the generated music as a WAV file named \"bach_hot.wav.\""
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "cc8d853f",
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3 (ipykernel)",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.11.5"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}
